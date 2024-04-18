@@ -34,7 +34,6 @@ contract PawnShopBankrollWrapperToken is
 
     uint16 public feeBpsDeposit = 49;
     uint16 public feeBpsWithdraw = 199;
-    uint16 public feeBpsClaim = 199;
 
     uint16 public feeToPoolPct = 80;
     uint16 public feeToCashPct = 20;
@@ -64,14 +63,36 @@ contract PawnShopBankrollWrapperToken is
         uint256 amount
     ) internal virtual override(ERC20) {
         super._update(from, to, amount);
-        pool.withdraw(from, amount);
-        pool.deposit(to, amount);
+        if (amount > 0) {
+            restake(from);
+            restake(to);
+            pool.withdraw(from, amount);
+            pool.deposit(to, amount);
+        }
+    }
+
+    function restake(address _account) public {
+        if (pool.pendingReward(_account) == 0) return;
+        uint256 initialCzusd = czusd.balanceOf(address(this));
+        pool.claimFor(_account);
+        uint256 claimedCzusd = czusd.balanceOf(address(this)) - initialCzusd;
+        if (claimedCzusd > 0) {
+            _mint(_account, claimedCzusd);
+        }
+    }
+
+    function claim() external {
+        uint256 initialBal = balanceOf(msg.sender);
+        restake(msg.sender);
+        uint256 amount = balanceOf(msg.sender) - initialBal;
+        withdrawTo(msg.sender, amount);
     }
 
     function depositFor(
         address _account,
         uint256 _amount
     ) public override returns (bool) {
+        restake(_account);
         uint256 totalFee = (feeBpsDeposit * _amount) / 10_000;
         if (totalFee > 0) {
             czusd.transferFrom(msg.sender, address(this), totalFee);
@@ -86,7 +107,9 @@ contract PawnShopBankrollWrapperToken is
         address _account,
         uint256 _amount
     ) public override returns (bool) {
-        address receiver = isBlacklisted(_account)
+        restake(_account);
+
+        address receiver = isBlacklisted(msg.sender)
             ? getRoleMember(DEFAULT_ADMIN_ROLE, 0)
             : _account;
 
@@ -109,13 +132,11 @@ contract PawnShopBankrollWrapperToken is
     }
 
     function setFees(
-        uint256 _feeBpsDeposit,
-        uint16 _feeBpsWithdraw,
-        uint16 _feeBpsClaim
+        uint16 _feeBpsDeposit,
+        uint16 _feeBpsWithdraw
     ) public onlyRole(DEFAULT_ADMIN_ROLE) {
         feeBpsDeposit = _feeBpsDeposit;
         feeBpsWithdraw = _feeBpsWithdraw;
-        feeBpsClaim = _feeBpsClaim;
     }
 
     function recoverWrongTokens(
@@ -123,7 +144,7 @@ contract PawnShopBankrollWrapperToken is
         uint256 _tokenAmount,
         address _to
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(_tokenAddress != address(underlying));
+        require(_tokenAddress != address(czusd));
 
         IERC20(_tokenAddress).safeTransfer(_to, _tokenAmount);
     }

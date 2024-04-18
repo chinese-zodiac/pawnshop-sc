@@ -5,7 +5,6 @@ pragma solidity ^0.8.4;
 import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./interfaces/IBlacklist.sol";
 import "./lib/IterableArrayWithoutDuplicateKeys.sol";
 
 //import "hardhat/console.sol";
@@ -90,36 +89,24 @@ contract PawnShopBankroll is AccessControlEnumerable {
         _withdraw(_for, _amount);
     }
 
-    function claim() external {
-        _claimFor(msg.sender);
-    }
-
-    function claimFor(address _staker) external {
-        _claimFor(_staker);
+    function claimFor(address _account) external {
+        require(msg.sender == stakeWrapperToken);
+        _claimFor(_account);
     }
 
     function _claimFor(address _account) internal {
         uint256 accountBal = stakedBal[_account];
         _updatePool();
-        address rewardsreceiver = IBlacklist(stakeWrapperToken).isBlacklisted(
-            _account
-        )
-            ? getRoleMember(DEFAULT_ADMIN_ROLE, 0)
-            : _account;
         if (accountBal > 0) {
             uint256 pending = ((accountBal) * accTokenPerShare) /
                 PRECISION_FACTOR -
                 userRewardDebt[_account];
             if (pending > 0) {
-                tribeToken.safeTransfer(rewardsreceiver, pending);
                 totalRewardsPaid += pending;
                 totalRewardsReceived[_account] += (pending);
+                tribeToken.safeTransfer(address(stakeWrapperToken), pending);
             }
-            globalRewardDebt -= userRewardDebt[_account];
-            userRewardDebt[_account] =
-                (accountBal * accTokenPerShare) /
-                PRECISION_FACTOR;
-            globalRewardDebt += userRewardDebt[_account];
+            _updateRewardDebt(_account);
         }
     }
 
@@ -127,28 +114,9 @@ contract PawnShopBankroll is AccessControlEnumerable {
         if (isRewardExempt[_account]) return;
         if (_amount == 0) return;
         _updatePool();
-        address rewardsreceiver = IBlacklist(stakeWrapperToken).isBlacklisted(
-            _account
-        )
-            ? getRoleMember(DEFAULT_ADMIN_ROLE, 0)
-            : _account;
-        if (stakedBal[_account] > 0) {
-            uint256 pending = (stakedBal[_account] * accTokenPerShare) /
-                PRECISION_FACTOR -
-                userRewardDebt[_account];
-            if (pending > 0) {
-                tribeToken.safeTransfer(rewardsreceiver, pending);
-                totalRewardsPaid += pending;
-                totalRewardsReceived[_account] += pending;
-            }
-        }
-        globalRewardDebt -= userRewardDebt[_account];
         stakedBal[_account] += _amount;
-        userRewardDebt[_account] =
-            (stakedBal[_account] * accTokenPerShare) /
-            PRECISION_FACTOR;
-        globalRewardDebt += userRewardDebt[_account];
         totalStaked += _amount;
+        _updateRewardDebt(_account);
     }
 
     /*
@@ -159,28 +127,17 @@ contract PawnShopBankroll is AccessControlEnumerable {
         if (isRewardExempt[_account]) return;
         if (_amount == 0) return;
         _updatePool();
-
-        address rewardsreceiver = IBlacklist(stakeWrapperToken).isBlacklisted(
-            _account
-        )
-            ? getRoleMember(DEFAULT_ADMIN_ROLE, 0)
-            : _account;
-
-        uint256 pending = (stakedBal[_account] * accTokenPerShare) /
-            PRECISION_FACTOR -
-            userRewardDebt[_account];
-        if (pending > 0) {
-            tribeToken.safeTransfer(rewardsreceiver, pending);
-            totalRewardsPaid += pending;
-            totalRewardsReceived[_account] += pending;
-        }
-        globalRewardDebt -= userRewardDebt[_account];
         stakedBal[_account] -= _amount;
+        totalStaked -= _amount;
+        _updateRewardDebt(_account);
+    }
+
+    function _updateRewardDebt(address _account) internal {
+        globalRewardDebt -= userRewardDebt[_account];
         userRewardDebt[_account] =
             (stakedBal[_account] * accTokenPerShare) /
             PRECISION_FACTOR;
         globalRewardDebt += userRewardDebt[_account];
-        totalStaked -= _amount;
     }
 
     function addRewards(uint256 _tokenWad) public {
