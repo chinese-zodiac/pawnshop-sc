@@ -21,8 +21,11 @@ contract PawnVaultERC721 is
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
     }
 
-    function mint(address to) external onlyRole(MINTER_ROLE) {
-        _mint(to, nextMintId);
+    function mint(
+        address to
+    ) external onlyRole(MINTER_ROLE) returns (uint256 id) {
+        id = nextMintId;
+        _mint(to, id);
         nextMintId++;
     }
 
