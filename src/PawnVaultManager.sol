@@ -22,18 +22,26 @@ contract PawnVaultManager is AccessControlEnumerable {
     PawnVaultERC721 public immutable VAULT_ERC721;
     IERC20MintableBurnable public immutable CZUSD;
 
+    uint256 public constant PAYMENT_PERIOD = 14 days;
+    uint256 public constant LIQUIDATION_PERIOD = 90 days;
+    uint256 public constant MAX_MISSED_PAYMENTS = 6;
+
     uint256 public aprDeltaPerDayBps = 20;
     uint256 public aprBase = 799;
     uint256 public aprAdd = 400;
 
     uint256 public originationFee = 199;
-    uint256 public pawnCollReductionBps = 3000;
-    uint256 public pawnLiqReductionBps = 1000;
+    uint256 public missedPaymentFeeBps = 125;
+    uint256 public principalPaymentAprReductionBps = 100;
+    uint256 public principalPaymentBps = 150;
+
+    uint256 public pawnBorrowCollReductionBps = 3000;
+    uint256 public pawnLiqCollReductionBps = 1000;
 
     mapping(IERC20 collateral => bool whitelisted) public collateralWhitelist;
 
-    mapping(uint256 vaultERC721Id => IPawnVault vault) public vaults;
-    mapping(uint256 vaultERC721Id => IERC20 collateral) public vaultCollateral;
+    mapping(uint256 vaultERC721Id => VaultRecord vaultRecord)
+        public vaultRecords;
 
     error PawnVaultManagerUnauthorized();
     error PawnVaultManagerNotCollateralWhitelist();
