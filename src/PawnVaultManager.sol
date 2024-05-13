@@ -31,9 +31,9 @@ contract PawnVaultManager is AccessControlEnumerable {
     uint256 public aprAdd = 400;
 
     uint256 public originationFee = 199;
-    uint256 public missedPaymentFeeBps = 125;
+    uint256 public missedPaymentFeeBps = 399;
     uint256 public principalPaymentAprReductionBps = 100;
-    uint256 public principalPaymentBps = 150;
+    uint256 public principalPaymentBps = 75;
 
     uint256 public pawnBorrowCollReductionBps = 3000;
     uint256 public pawnLiqCollReductionBps = 1000;
