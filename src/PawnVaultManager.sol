@@ -7,17 +7,11 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20MintableBurnable} from "./interfaces/IERC20MintableBurnable.sol";
 import {PawnVaultERC721} from "./PawnVaultERC721.sol";
-import {IPawnVault} from "./interfaces/IPawnVault.sol";
+import {IVaultWallet} from "./interfaces/IVaultWallet.sol";
 import {PawnVault} from "./PawnVault.sol";
 
 contract PawnVaultManager is AccessControlEnumerable {
     using SafeERC20 for IERC20;
-
-    bytes32 public constant REPO_ROLE = keccak256("REPO_ROLE");
-    bytes32 public constant COLLATERAL_MANAGER_ROLE =
-        keccak256("COLLATERAL_MANAGER_ROLE");
-    bytes32 public constant EXECUTE_CUSTOM_ROLE =
-        keccak256("EXECUTE_CUSTOM_ROLE");
 
     PawnVaultERC721 public immutable VAULT_ERC721;
     IERC20MintableBurnable public immutable CZUSD;

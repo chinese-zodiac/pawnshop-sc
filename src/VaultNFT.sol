@@ -3,43 +3,48 @@
 
 pragma solidity ^0.8.4;
 import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
+import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import {ERC721Burnable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 import {ERC721Enumerable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
+import {IVaultNFT} from "./interfaces/IVaultNFT.sol";
 
-contract PawnVaultERC721 is
-    AccessControlEnumerable,
-    ERC721Burnable,
-    ERC721Enumerable
-{
-    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+contract VaultNFT is IVaultNFT, AccessControlEnumerable, ERC721Enumerable {
+    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
     uint256 public nextMintId = 1;
 
-    constructor(address _admin) ERC721("Pawn Shop Vault", "PSV") {
+    constructor(address _admin) ERC721("Pawn Shop Vault NFT", "PSV") {
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
     }
 
     function mint(
         address to
-    ) external onlyRole(MINTER_ROLE) returns (uint256 id) {
+    ) external onlyRole(MANAGER_ROLE) returns (uint256 id) {
         id = nextMintId;
         _mint(to, id);
         nextMintId++;
+    }
+    function burn(uint256 tokenId) public virtual onlyRole(MANAGER_ROLE) {
+        //Auth set to zero so that manager can liquidate underwater vaults
+        _update(address(0), tokenId, address(0));
+    }
+
+    function exists(uint256 tokenId) external view returns (bool) {
+        return _ownerOf(tokenId) != address(0x0);
     }
 
     function _increaseBalance(
         address account,
         uint128 amount
-    ) internal virtual override(ERC721, ERC721Enumerable) {
+    ) internal virtual override {
         ERC721Enumerable._increaseBalance(account, amount);
     }
     function _update(
         address to,
         uint256 tokenId,
         address auth
-    ) internal virtual override(ERC721, ERC721Enumerable) returns (address) {
+    ) internal virtual override returns (address) {
         return ERC721Enumerable._update(to, tokenId, auth);
     }
     function supportsInterface(
@@ -48,7 +53,7 @@ contract PawnVaultERC721 is
         public
         view
         virtual
-        override(AccessControlEnumerable, ERC721, ERC721Enumerable)
+        override(IERC165, AccessControlEnumerable, ERC721Enumerable)
         returns (bool)
     {
         return

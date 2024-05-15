@@ -5,17 +5,7 @@ import {IPawnVault} from "./interfaces/IPawnVault.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IAmmPair} from "./interfaces/IAmmPair.sol";
 import {AmmLibrary} from "./lib/AmmLibrary.sol";
-
-struct PawnVaultRecord {
-    uint256 vaultERC721Id;
-    IPawnVault vault;
-    IERC20 collateral;
-    uint256 principalPaymentsStreak;
-    uint256 principal;
-    uint256 prevPaymentEpoch;
-    uint256 nextPaymentEpoch;
-    uint256 nextPaymentInterest;
-}
+import {CollateralRegistry} from "./CollateralRegistry.sol";
 
 library PawnVaultRecordLib {
     function makeInterestPayment(

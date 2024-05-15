@@ -7,9 +7,9 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IPawnVault} from "./interfaces/IPawnVault.sol";
+import {IVaultWallet} from "./interfaces/IVaultWallet.sol";
 
-contract PawnVault is IPawnVault, Ownable {
+contract VaultWallet is IVaultWallet, Ownable {
     using SafeERC20 for IERC20;
     constructor() Ownable(_msgSender()) {}
 
