@@ -54,7 +54,6 @@ contract VaultRegistry is IVaultRegistry, AccessControlEnumerable {
             uint256 collateralID,
             uint256 principalPaymentsStreak,
             uint256 principal,
-            uint256 prevPaymentEpoch,
             uint256 nextPaymentEpoch,
             uint256 nextPaymentInterest
         )
@@ -65,7 +64,6 @@ contract VaultRegistry is IVaultRegistry, AccessControlEnumerable {
         collateralID = record.collateralID;
         principalPaymentsStreak = record.principalPaymentsStreak;
         principal = record.principal;
-        prevPaymentEpoch = record.prevPaymentEpoch;
         nextPaymentEpoch = record.nextPaymentEpoch;
         nextPaymentInterest = record.nextPaymentInterest;
     }
@@ -76,7 +74,6 @@ contract VaultRegistry is IVaultRegistry, AccessControlEnumerable {
         uint256 collateralID,
         uint256 principalPaymentsStreak,
         uint256 principal,
-        uint256 prevPaymentEpoch,
         uint256 nextPaymentEpoch,
         uint256 nextPaymentInterest
     ) external onlyRole(REGISTRAR_ROLE) {
@@ -86,7 +83,6 @@ contract VaultRegistry is IVaultRegistry, AccessControlEnumerable {
         record.collateralID = collateralID;
         record.principalPaymentsStreak = principalPaymentsStreak;
         record.principal = principal;
-        record.prevPaymentEpoch = prevPaymentEpoch;
         record.nextPaymentEpoch = nextPaymentEpoch;
         record.nextPaymentInterest = nextPaymentInterest;
     }
@@ -96,7 +92,6 @@ contract VaultRegistry is IVaultRegistry, AccessControlEnumerable {
         uint256 collateralID,
         uint256 principalPaymentsStreak,
         uint256 principal,
-        uint256 prevPaymentEpoch,
         uint256 nextPaymentEpoch,
         uint256 nextPaymentInterest
     ) external onlyRole(REGISTRAR_ROLE) {
@@ -106,7 +101,6 @@ contract VaultRegistry is IVaultRegistry, AccessControlEnumerable {
         record.collateralID = collateralID;
         record.principalPaymentsStreak = principalPaymentsStreak;
         record.principal = principal;
-        record.prevPaymentEpoch = prevPaymentEpoch;
         record.nextPaymentEpoch = nextPaymentEpoch;
         record.nextPaymentInterest = nextPaymentInterest;
     }
@@ -119,10 +113,29 @@ contract VaultRegistry is IVaultRegistry, AccessControlEnumerable {
         delete record.collateralID;
         delete record.principalPaymentsStreak;
         delete record.principal;
-        delete record.prevPaymentEpoch;
         delete record.nextPaymentEpoch;
         delete record.nextPaymentInterest;
         delete vaultRecords[vaultId];
         vaultNFT.burn(vaultId);
     }
-}
+
+    function addPrincipal(uint256 vaultId, uint256 wad) external onlyRole(REGISTRAR_ROLE) returns (uint256 newPrincipal) {
+        vaultRecords[vaultId].principal += wad;
+        return vaultRecords[vaultId].principal;
+    }
+    function subPrincipal(uint256 vaultId, uint256 wad) external onlyRole(REGISTRAR_ROLE) returns (uint256 newPrincipal) {
+        vaultRecords[vaultId].principal -= wad;
+        return vaultRecords[vaultId].principal;
+    }
+    function setNextPaymentEpoch(uint256 vaultId, uint256 to) external onlyRole(REGISTRAR_ROLE) {
+        vaultRecords[vaultId].nextPaymentEpoch = to;
+    }
+    function setNextPaymentInterest(uint256 vaultId, uint256 to) external onlyRole(REGISTRAR_ROLE) {
+        vaultRecords[vaultId].nextPaymentInterest = to;
+    }
+    function incrementPrincipalPaymentsStreak(uint256 vaultId) external onlyRole(REGISTRAR_ROLE) {
+        vaultRecords[vaultId].principalPaymentsStreak++;
+    }
+    function resetPrincipalPaymentsStreak(uint256 vaultId) external onlyRole(REGISTRAR_ROLE) {
+        vaultRecords[vaultId].principalPaymentsStreak = 0;
+    }

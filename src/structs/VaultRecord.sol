@@ -8,7 +8,6 @@ struct VaultRecord {
     uint256 collateralID;
     uint256 principalPaymentsStreak;
     uint256 principal;
-    uint256 prevPaymentEpoch;
     uint256 nextPaymentEpoch;
     uint256 nextPaymentInterest;
 }

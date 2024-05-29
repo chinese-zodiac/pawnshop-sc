@@ -15,7 +15,6 @@ interface IVaultRegistry {
             uint256 collateralID,
             uint256 principalPaymentsStreak,
             uint256 principal,
-            uint256 prevPaymentEpoch,
             uint256 nextPaymentEpoch,
             uint256 nextPaymentInterest
         );
@@ -26,7 +25,6 @@ interface IVaultRegistry {
         uint256 collateralID,
         uint256 principalPaymentsStreak,
         uint256 principal,
-        uint256 prevPaymentEpoch,
         uint256 nextPaymentEpoch,
         uint256 nextPaymentInterest
     ) external;
@@ -36,9 +34,20 @@ interface IVaultRegistry {
         uint256 collateralID,
         uint256 principalPaymentsStreak,
         uint256 principal,
-        uint256 prevPaymentEpoch,
         uint256 nextPaymentEpoch,
         uint256 nextPaymentInterest
     ) external;
+    function addPrincipal(
+        uint256 vaultId,
+        uint256 wad
+    ) external returns (uint256 newPrincipal);
+    function subPrincipal(
+        uint256 vaultId,
+        uint256 wad
+    ) external returns (uint256 newPrincipal);
+    function setNextPaymentEpoch(uint256 vaultId, uint256 to) external;
+    function setNextPaymentInterest(uint256 vaultId, uint256 to) external;
+    function incrementPrincipalPaymentsStreak(uint256 vaultId) external;
+    function resetPrincipalPaymentsStreak(uint256 vaultId) external;
     function removeVaultRecord(uint256 vaultId) external;
 }
