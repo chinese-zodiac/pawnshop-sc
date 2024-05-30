@@ -6,8 +6,9 @@ import {IVaultWallet} from "../interfaces/IVaultWallet.sol";
 struct VaultRecord {
     IVaultWallet vaultWallet;
     uint256 collateralID;
-    uint256 principalPaymentsStreak;
+    uint256 fullPaymentsStreak;
     uint256 principal;
     uint256 nextPaymentEpoch;
     uint256 nextPaymentInterest;
+    uint256 collateralUnlockEpoch;
 }

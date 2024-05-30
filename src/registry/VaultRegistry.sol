@@ -14,7 +14,7 @@ import {VaultWallet} from "../VaultWallet.sol";
 contract VaultRegistry is IVaultRegistry, AccessControlEnumerable {
     bytes32 public constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");
     IVaultNFT public immutable vaultNFT;
-    mapping(uint256 vaultId => VaultRecord record) public vaultRecords;
+    mapping(uint256 vaultID => VaultRecord record) public vaultRecords;
 
     constructor(IVaultNFT _vaultNFT) {
         vaultNFT = _vaultNFT;
@@ -31,9 +31,9 @@ contract VaultRegistry is IVaultRegistry, AccessControlEnumerable {
     }
 
     function getIsIDInRegistry(
-        uint256 vaultId
+        uint256 vaultID
     ) external view returns (bool isInRegistry_) {
-        return vaultNFT.exists(vaultId);
+        return vaultNFT.exists(vaultID);
     }
     function getCount() public view returns (uint256 count_) {
         return vaultNFT.totalSupply();
@@ -44,98 +44,38 @@ contract VaultRegistry is IVaultRegistry, AccessControlEnumerable {
         return vaultNFT.tokenByIndex(index);
     }
     function getVaultByID(
-        uint256 vaultId
-    )
-        external
-        view
-        returns (
-            address owner,
-            IVaultWallet vaultWallet,
-            uint256 collateralID,
-            uint256 principalPaymentsStreak,
-            uint256 principal,
-            uint256 nextPaymentEpoch,
-            uint256 nextPaymentInterest
-        )
-    {
-        VaultRecord memory record = vaultRecords[vaultId];
-        owner = vaultNFT.ownerOf(vaultId);
-        vaultWallet = record.vaultWallet;
-        collateralID = record.collateralID;
-        principalPaymentsStreak = record.principalPaymentsStreak;
-        principal = record.principal;
-        nextPaymentEpoch = record.nextPaymentEpoch;
-        nextPaymentInterest = record.nextPaymentInterest;
+        uint256 vaultID
+    ) external view returns (VaultRecord memory vaultRecord) {
+        return vaultRecords[vaultID];
     }
 
     function addVaultRecord(
         address owner,
-        IVaultWallet vaultWallet,
-        uint256 collateralID,
-        uint256 principalPaymentsStreak,
-        uint256 principal,
-        uint256 nextPaymentEpoch,
-        uint256 nextPaymentInterest
+        VaultRecord memory vaultRecord
     ) external onlyRole(REGISTRAR_ROLE) {
-        uint256 vaultId = vaultNFT.mint(owner);
-        VaultRecord storage record = vaultRecords[vaultId];
-        record.vaultWallet = vaultWallet;
-        record.collateralID = collateralID;
-        record.principalPaymentsStreak = principalPaymentsStreak;
-        record.principal = principal;
-        record.nextPaymentEpoch = nextPaymentEpoch;
-        record.nextPaymentInterest = nextPaymentInterest;
+        uint256 vaultID = vaultNFT.mint(owner);
+        vaultRecords[vaultID] = vaultRecord;
     }
     function updateVaultRecord(
-        uint256 vaultId,
-        IVaultWallet vaultWallet,
-        uint256 collateralID,
-        uint256 principalPaymentsStreak,
-        uint256 principal,
-        uint256 nextPaymentEpoch,
-        uint256 nextPaymentInterest
+        uint256 vaultID,
+        VaultRecord memory vaultRecord
     ) external onlyRole(REGISTRAR_ROLE) {
-        require(vaultNFT.exists(vaultId), "Vault ID not in registry");
-        VaultRecord storage record = vaultRecords[vaultId];
-        record.vaultWallet = vaultWallet;
-        record.collateralID = collateralID;
-        record.principalPaymentsStreak = principalPaymentsStreak;
-        record.principal = principal;
-        record.nextPaymentEpoch = nextPaymentEpoch;
-        record.nextPaymentInterest = nextPaymentInterest;
+        require(vaultNFT.exists(vaultID), "Vault ID not in registry");
+        vaultRecords[vaultID] = vaultRecord;
     }
     function removeVaultRecord(
-        uint256 vaultId
+        uint256 vaultID
     ) external onlyRole(REGISTRAR_ROLE) {
-        require(vaultNFT.exists(vaultId), "Vault ID not in registry");
-        VaultRecord storage record = vaultRecords[vaultId];
+        require(vaultNFT.exists(vaultID), "Vault ID not in registry");
+        VaultRecord storage record = vaultRecords[vaultID];
         delete record.vaultWallet;
         delete record.collateralID;
-        delete record.principalPaymentsStreak;
+        delete record.fullPaymentsStreak;
         delete record.principal;
         delete record.nextPaymentEpoch;
         delete record.nextPaymentInterest;
-        delete vaultRecords[vaultId];
-        vaultNFT.burn(vaultId);
+        delete record.collateralUnlockEpoch;
+        delete vaultRecords[vaultID];
+        vaultNFT.burn(vaultID);
     }
-
-    function addPrincipal(uint256 vaultId, uint256 wad) external onlyRole(REGISTRAR_ROLE) returns (uint256 newPrincipal) {
-        vaultRecords[vaultId].principal += wad;
-        return vaultRecords[vaultId].principal;
-    }
-    function subPrincipal(uint256 vaultId, uint256 wad) external onlyRole(REGISTRAR_ROLE) returns (uint256 newPrincipal) {
-        vaultRecords[vaultId].principal -= wad;
-        return vaultRecords[vaultId].principal;
-    }
-    function setNextPaymentEpoch(uint256 vaultId, uint256 to) external onlyRole(REGISTRAR_ROLE) {
-        vaultRecords[vaultId].nextPaymentEpoch = to;
-    }
-    function setNextPaymentInterest(uint256 vaultId, uint256 to) external onlyRole(REGISTRAR_ROLE) {
-        vaultRecords[vaultId].nextPaymentInterest = to;
-    }
-    function incrementPrincipalPaymentsStreak(uint256 vaultId) external onlyRole(REGISTRAR_ROLE) {
-        vaultRecords[vaultId].principalPaymentsStreak++;
-    }
-    function resetPrincipalPaymentsStreak(uint256 vaultId) external onlyRole(REGISTRAR_ROLE) {
-        vaultRecords[vaultId].principalPaymentsStreak = 0;
-    }
+}

@@ -5,40 +5,27 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ILiquidationController} from "../interfaces/ILiquidationController.sol";
 import {IBorrowCalculator} from "../interfaces/IBorrowCalculator.sol";
 import {IYieldController} from "../interfaces/IYieldController.sol";
+import {CollateralRecord} from "../structs/CollateralRecord.sol";
 
 interface ICollateralRegistry {
     function getAllIDs() external view returns (uint256[] memory allIDs_);
     function getIsIDInRegistry(
-        uint256 collateralId
+        uint256 collateralID
     ) external view returns (bool isInRegistry_);
     function getCount() external view returns (uint256 count_);
     function getIDAt(
         uint256 index
     ) external view returns (uint256 collateralId_);
     function getCollateralByID(
-        uint256 collateralId
-    )
-        external
-        view
-        returns (
-            IERC20 collateral_,
-            IBorrowCalculator borrowCalculator_,
-            ILiquidationController liquidationController_,
-            IYieldController yieldController_
-        );
+        uint256 collateralID
+    ) external view returns (CollateralRecord memory collateralRecord);
 
     function addCollateralRecord(
-        IERC20 collateral,
-        IBorrowCalculator borrowCalculator,
-        ILiquidationController liquidationController,
-        IYieldController yieldController
+        CollateralRecord memory collateralRecord
     ) external;
     function updateCollateralRecord(
-        uint256 collateralId,
-        IERC20 collateral,
-        IBorrowCalculator borrowCalculator,
-        ILiquidationController liquidationController,
-        IYieldController yieldController
+        uint256 collateralID,
+        CollateralRecord memory collateralRecord
     ) external;
-    function removeCollateralRecord(uint256 collateralId) external;
+    function removeCollateralRecord(uint256 collateralID) external;
 }

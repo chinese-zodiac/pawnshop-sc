@@ -29,65 +29,40 @@ contract CollateralRegistry is ICollateralRegistry, AccessControlEnumerable {
     }
 
     function getIsIDInRegistry(
-        uint256 collateralId
+        uint256 collateralID
     ) external view returns (bool isInRegistry_) {
-        return collateralRegistry.contains(collateralId);
+        return collateralRegistry.contains(collateralID);
     }
     function getCount() external view returns (uint256 count_) {
         return collateralRegistry.length();
     }
     function getIDAt(
         uint256 index
-    ) external view returns (uint256 collateralId_) {
+    ) external view returns (uint256 collateralID_) {
         return collateralRegistry.at(index);
     }
     function getCollateralByID(
-        uint256 collateralId
-    )
-        external
-        view
-        returns (
-            IERC20 collateral_,
-            IBorrowCalculator borrowCalculator_,
-            ILiquidationController liquidationController_,
-            IYieldController yieldController_
-        )
-    {
-        CollateralRecord memory record = collateralRecords[collateralId];
-        collateral_ = record.collateral;
-        borrowCalculator_ = record.borrowCalculator;
-        liquidationController_ = record.liquidationController;
-        yieldController_ = record.yieldController;
+        uint256 collateralID
+    ) external view returns (CollateralRecord memory collateralRecord) {
+        return collateralRecords[collateralID];
     }
 
     function addCollateralRecord(
-        IERC20 collateral,
-        IBorrowCalculator borrowCalculator,
-        ILiquidationController liquidationController,
-        IYieldController yieldController
+        CollateralRecord memory collateralRecord
     ) external onlyRole(REGISTRAR_ROLE) {
-        collateralRecords[nextId].collateral = collateral;
-        collateralRecords[nextId].borrowCalculator = borrowCalculator;
-        collateralRecords[nextId].liquidationController = liquidationController;
-        collateralRecords[nextId].yieldController = yieldController;
+        collateralRecords[nextId] = collateralRecord;
         collateralRegistry.add(nextId);
         nextId++;
     }
     function updateCollateralRecord(
         uint256 id,
-        IERC20 collateral,
-        IBorrowCalculator borrowCalculator,
-        ILiquidationController liquidationController,
-        IYieldController yieldController
+        CollateralRecord memory collateralRecord
     ) external onlyRole(REGISTRAR_ROLE) {
         require(
             collateralRegistry.contains(id),
             "Collateral ID not in registry"
         );
-        collateralRecords[id].collateral = collateral;
-        collateralRecords[id].borrowCalculator = borrowCalculator;
-        collateralRecords[id].liquidationController = liquidationController;
-        collateralRecords[id].yieldController = yieldController;
+        collateralRecords[id] = collateralRecord;
     }
     function removeCollateralRecord(
         uint256 id

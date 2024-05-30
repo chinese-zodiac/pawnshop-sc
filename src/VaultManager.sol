@@ -14,6 +14,8 @@ import {IBorrowCalculator} from "./interfaces/IBorrowCalculator.sol";
 import {IYieldController} from "./interfaces/IYieldController.sol";
 import {IVaultWallet} from "./interfaces/IVaultWallet.sol";
 import {VaultWallet} from "./VaultWallet.sol";
+import {VaultRecord} from "./structs/VaultRecord.sol";
+import {CollateralRecord} from "./structs/CollateralRecord.sol";
 
 contract VaultManager is AccessControlEnumerable {
     using SafeERC20 for IERC20;
@@ -24,8 +26,11 @@ contract VaultManager is AccessControlEnumerable {
     IERC20MintableBurnable public immutable CZUSD;
 
     uint256 public constant PAYMENT_PERIOD = 14 days;
-    uint256 public constant LIQUIDATION_PERIOD = 90 days;
-    uint256 public constant MAX_MISSED_PAYMENTS = 6;
+    uint256 public constant LIQUIDATION_PERIOD = 30 days;
+    uint256 public constant UNLOCK_PERIOD = 60 days;
+    uint256 public constant MAX_MISSED_PAYMENTS = 2;
+
+    uint256 public constant MIN_PRINCIPAL = 10 ether;
 
     uint256 public aprDeltaPerDayBps = 20;
     uint256 public aprBase = 799;
@@ -33,7 +38,7 @@ contract VaultManager is AccessControlEnumerable {
 
     uint256 public originationFee = 199;
     uint256 public missedPaymentFeeBps = 399;
-    uint256 public principalPaymentAprReductionBps = 100;
+    uint256 public fullPaymentAprReductionBps = 100;
     uint256 public principalPaymentBps = 75;
 
     uint256 public pawnBorrowCollReductionBps = 3000;
@@ -41,6 +46,7 @@ contract VaultManager is AccessControlEnumerable {
 
     error PawnVaultManagerUnauthorized();
     error PawnVaultManagerNotCollateralWhitelist();
+    error PawnVaultManagerOverpayment();
 
     constructor(
         address _admin,
@@ -63,8 +69,8 @@ contract VaultManager is AccessControlEnumerable {
         _;
     }
 
-    modifier onlyVaultOwner(uint256 vaultId) {
-        if (msg.sender != VAULT_NFT.ownerOf(vaultId)) {
+    modifier onlyVaultOwner(uint256 vaultID) {
+        if (msg.sender != VAULT_NFT.ownerOf(vaultID)) {
             revert PawnVaultManagerUnauthorized();
         }
         _;
@@ -72,111 +78,130 @@ contract VaultManager is AccessControlEnumerable {
 
     function spawnVault(
         address _to,
-        uint256 collateralId
-    ) public onlyWhitelistCollateral(collateralId) {
+        uint256 collateralID
+    ) public onlyWhitelistCollateral(collateralID) {
         VaultWallet vaultWallet = new VaultWallet();
-        VAULT_REGISTRY.addVaultRecord(
-            _to,
-            vaultWallet,
-            collateralId,
-            0,
-            0,
-            0,
-            0
-        );
-        (
-            ,
-            ,
-            ILiquidationController liquidationController,
-            IYieldController yieldController
-        ) = COLLATERAL_REGISTRY.getCollateralByID(collateralId);
-        vaultWallet.grantRole(vaultWallet.MANAGER_ROLE(), address(this));
+        VaultRecord memory vaultRecord;
+        vaultRecord.vaultWallet = vaultWallet;
+        vaultRecord.collateralID = collateralID;
+        VAULT_REGISTRY.addVaultRecord(_to, vaultRecord);
+        CollateralRecord memory collateralRecord = COLLATERAL_REGISTRY
+            .getCollateralByID(collateralID);
+        bytes32 managerRole = vaultWallet.MANAGER_ROLE();
+        vaultWallet.grantRole(managerRole, address(this));
         vaultWallet.grantRole(
-            vaultWallet.MANAGER_ROLE(),
-            address(liquidationController)
+            managerRole,
+            address(collateralRecord.liquidationController)
         );
         vaultWallet.grantRole(
-            vaultWallet.MANAGER_ROLE(),
-            address(yieldController)
+            managerRole,
+            address(collateralRecord.yieldController)
         );
-    }
-
-    function _updateVault(
-        uint256 vaultId,
-        uint256 nextPaymentEpoch,
-        uint256 principal
-    ) internal returns (uint256 newPrincipal) {
-        //Add penalties
-        if (block.timestamp > nextPaymentEpoch) {
-            principal = VAULT_REGISTRY.addPrincipal(
-                vaultId,
-                getPenalty(
-                    block.timestamp - nextPaymentEpoch / PAYMENT_PERIOD,
-                    principal
-                )
-            );
-        }
-        //Set liquidation status
-
-        return newPrincipal;
     }
 
     //Must be only vault owner to prevent 3rd parties breaking streak
-    function makeInterestPayment(
-        uint256 vaultId
-    ) external onlyVaultOwner(vaultId) {
-        (
-            ,
-            ,
-            ,
-            uint256 principalPaymentsStreak,
-            uint256 principal,
-            uint256 nextPaymentEpoch,
-            uint256 nextPaymentInterest
-        ) = VAULT_REGISTRY.getVaultByID(vaultId);
-        principal = _updateVault(vaultId, nextPaymentEpoch, principal);
-        CZUSD.burnFrom(msg.sender, nextPaymentInterest);
-        VAULT_REGISTRY.setNextPaymentEpoch(
-            vaultId,
-            nextPaymentEpoch + PAYMENT_PERIOD
+    function makePaymentInterest(
+        uint256 vaultID
+    ) external onlyVaultOwner(vaultID) {
+        VaultRecord memory vaultRecord = (VAULT_REGISTRY.getVaultByID(vaultID));
+        CollateralRecord memory collateralRecord = COLLATERAL_REGISTRY
+            .getCollateralByID(vaultRecord.collateralID);
+        if (vaultRecord.nextPaymentInterest == 0) {
+            revert PawnVaultManagerOverpayment();
+        }
+        CZUSD.burnFrom(msg.sender, vaultRecord.nextPaymentInterest);
+        vaultRecord.principal += getPenalty(
+            vaultRecord.principal,
+            vaultRecord.nextPaymentEpoch
         );
-        VAULT_REGISTRY.setNextPaymentInterest(
-            vaultId,
-            getInterest(principal, 1, principalPaymentsStreak)
+        vaultRecord.nextPaymentEpoch += PAYMENT_PERIOD;
+        vaultRecord.nextPaymentInterest = getInterest(
+            vaultRecord.principal,
+            1,
+            vaultRecord.fullPaymentsStreak
         );
-        VAULT_REGISTRY.resetPrincipalPaymentsStreak(vaultId);
+        vaultRecord.fullPaymentsStreak = 0;
+        VAULT_REGISTRY.updateVaultRecord(vaultID, vaultRecord);
     }
 
-    function makeFullPayment(uint256 vaultId) external {
-        (
-            ,
-            ,
-            ,
-            uint256 principalPaymentsStreak,
-            uint256 principal,
-            uint256 nextPaymentEpoch,
-            uint256 nextPaymentInterest
-        ) = VAULT_REGISTRY.getVaultByID(vaultId);
-        principal = _updateVault(vaultId, nextPaymentEpoch, principal);
-        uint256 principalPayment = (principal *
-            principalPaymentAprReductionBps) / 10_000;
-        CZUSD.burnFrom(msg.sender, nextPaymentInterest + principalPayment);
-        principal = VAULT_REGISTRY.subPrincipal(vaultId, principalPayment);
-        VAULT_REGISTRY.incrementPrincipalPaymentsStreak(vaultId);
-        VAULT_REGISTRY.setNextPaymentEpoch(
-            vaultId,
-            nextPaymentEpoch + PAYMENT_PERIOD
+    function makePaymentFull(uint256 vaultID) external {
+        VaultRecord memory vaultRecord = (VAULT_REGISTRY.getVaultByID(vaultID));
+        CollateralRecord memory collateralRecord = COLLATERAL_REGISTRY
+            .getCollateralByID(vaultRecord.collateralID);
+        vaultRecord.principal += getPenalty(
+            vaultRecord.principal,
+            vaultRecord.nextPaymentEpoch
         );
-        VAULT_REGISTRY.setNextPaymentInterest(
-            vaultId,
-            getInterest(principal, 1, principalPaymentsStreak)
+        uint256 principalPayment;
+        if (vaultRecord.principal < 10 ether) {
+            principalPayment = vaultRecord.principal; //fully pay off debt
+        } else {
+            principalPayment =
+                (vaultRecord.principal * principalPaymentBps) /
+                10_000;
+        }
+        if (vaultRecord.nextPaymentInterest + principalPayment == 0) {
+            revert PawnVaultManagerOverpayment();
+        }
+        CZUSD.burnFrom(
+            msg.sender,
+            vaultRecord.nextPaymentInterest + principalPayment
+        );
+        vaultRecord.principal -= principalPayment;
+        vaultRecord.fullPaymentsStreak++;
+        vaultRecord.nextPaymentEpoch += PAYMENT_PERIOD;
+        vaultRecord.nextPaymentInterest += getInterest(
+            vaultRecord.principal,
+            1,
+            vaultRecord.fullPaymentsStreak
+        );
+        VAULT_REGISTRY.updateVaultRecord(vaultID, vaultRecord);
+    }
+
+    //Must be only vault owner to prevent 3rd parties breaking streak
+    function makePaymentPrincipal(
+        uint256 vaultID,
+        uint256 paymentWad
+    ) external onlyVaultOwner(vaultID) {
+        VaultRecord memory vaultRecord = (VAULT_REGISTRY.getVaultByID(vaultID));
+        CollateralRecord memory collateralRecord = COLLATERAL_REGISTRY
+            .getCollateralByID(vaultRecord.collateralID);
+        vaultRecord.principal += getPenalty(
+            vaultRecord.principal,
+            vaultRecord.nextPaymentEpoch
+        );
+        if (
+            vaultRecord.principal < 10 ether ||
+            vaultRecord.principal < paymentWad
+        ) {
+            paymentWad = vaultRecord.principal; //fully pay off debt
+        }
+        CZUSD.burnFrom(msg.sender, paymentWad);
+        vaultRecord.principal -= paymentWad;
+        VAULT_REGISTRY.updateVaultRecord(vaultID, vaultRecord);
+    }
+
+    function deposit(uint256 vaultID, uint256 collateralWad) external {
+        VaultRecord memory vaultRecord = (VAULT_REGISTRY.getVaultByID(vaultID));
+        CollateralRecord memory collateralRecord = COLLATERAL_REGISTRY
+            .getCollateralByID(vaultRecord.collateralID);
+        (IERC20 collateral, , , ) = COLLATERAL_REGISTRY.getCollateralByID(
+            collateralID
+        );
+        collateral.safeTransferFrom(
+            msg.sender,
+            address(vaultWallet),
+            collateralWad
         );
     }
 
     function getPenalty(
-        uint256 missedPayments,
-        uint256 principal
+        uint256 principal,
+        uint256 nextPaymentEpoch
     ) public view returns (uint256 penalties) {
+        if (block.timestamp <= nextPaymentEpoch) return 0;
+        uint256 missedPayments = (block.timestamp - nextPaymentEpoch) /
+            PAYMENT_PERIOD;
         if (missedPayments == 0) return 0;
         return
             ((principal * missedPaymentFeeBps * missedPayments) / 10_000) +
@@ -186,11 +211,10 @@ contract VaultManager is AccessControlEnumerable {
     function getInterest(
         uint256 principal,
         uint256 periods,
-        uint256 principalPaymentsStreak
+        uint256 fullPaymentsStreak
     ) public view returns (uint256 interest) {
         uint256 apr = aprBase;
-        uint256 aprReduction = principalPaymentAprReductionBps *
-            principalPaymentsStreak;
+        uint256 aprReduction = fullPaymentAprReductionBps * fullPaymentsStreak;
         if (aprReduction < aprAdd) apr -= aprReduction;
         return (principal * periods * PAYMENT_PERIOD * apr) / 10_000 / 365 days;
     }
