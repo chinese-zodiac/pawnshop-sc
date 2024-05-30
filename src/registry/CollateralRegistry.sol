@@ -19,6 +19,8 @@ contract CollateralRegistry is ICollateralRegistry, AccessControlEnumerable {
     uint256 public nextId = 0;
     mapping(uint256 id => CollateralRecord record) public collateralRecords;
 
+    error CollateralRegistryID404();
+
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
@@ -30,7 +32,7 @@ contract CollateralRegistry is ICollateralRegistry, AccessControlEnumerable {
 
     function getIsIDInRegistry(
         uint256 collateralID
-    ) external view returns (bool isInRegistry_) {
+    ) public view returns (bool isInRegistry_) {
         return collateralRegistry.contains(collateralID);
     }
     function getCount() external view returns (uint256 count_) {
@@ -44,6 +46,7 @@ contract CollateralRegistry is ICollateralRegistry, AccessControlEnumerable {
     function getCollateralByID(
         uint256 collateralID
     ) external view returns (CollateralRecord memory collateralRecord) {
+        if (!getIsIDInRegistry(collateralID)) revert CollateralRegistryID404();
         return collateralRecords[collateralID];
     }
 
@@ -58,19 +61,13 @@ contract CollateralRegistry is ICollateralRegistry, AccessControlEnumerable {
         uint256 id,
         CollateralRecord memory collateralRecord
     ) external onlyRole(REGISTRAR_ROLE) {
-        require(
-            collateralRegistry.contains(id),
-            "Collateral ID not in registry"
-        );
+        if (!getIsIDInRegistry(id)) revert CollateralRegistryID404();
         collateralRecords[id] = collateralRecord;
     }
     function removeCollateralRecord(
         uint256 id
     ) external onlyRole(REGISTRAR_ROLE) {
-        require(
-            collateralRegistry.contains(id),
-            "Collateral ID not in registry"
-        );
+        if (!getIsIDInRegistry(id)) revert CollateralRegistryID404();
         delete collateralRecords[id].collateral;
         delete collateralRecords[id].borrowCalculator;
         delete collateralRecords[id].liquidationController;

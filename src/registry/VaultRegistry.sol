@@ -16,6 +16,8 @@ contract VaultRegistry is IVaultRegistry, AccessControlEnumerable {
     IVaultNFT public immutable vaultNFT;
     mapping(uint256 vaultID => VaultRecord record) public vaultRecords;
 
+    error VaultRegistryID404();
+
     constructor(IVaultNFT _vaultNFT) {
         vaultNFT = _vaultNFT;
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -32,7 +34,7 @@ contract VaultRegistry is IVaultRegistry, AccessControlEnumerable {
 
     function getIsIDInRegistry(
         uint256 vaultID
-    ) external view returns (bool isInRegistry_) {
+    ) public view returns (bool isInRegistry_) {
         return vaultNFT.exists(vaultID);
     }
     function getCount() public view returns (uint256 count_) {
@@ -46,6 +48,7 @@ contract VaultRegistry is IVaultRegistry, AccessControlEnumerable {
     function getVaultByID(
         uint256 vaultID
     ) external view returns (VaultRecord memory vaultRecord) {
+        if (!getIsIDInRegistry(vaultID)) revert VaultRegistryID404();
         return vaultRecords[vaultID];
     }
 
@@ -60,13 +63,13 @@ contract VaultRegistry is IVaultRegistry, AccessControlEnumerable {
         uint256 vaultID,
         VaultRecord memory vaultRecord
     ) external onlyRole(REGISTRAR_ROLE) {
-        require(vaultNFT.exists(vaultID), "Vault ID not in registry");
+        if (!getIsIDInRegistry(vaultID)) revert VaultRegistryID404();
         vaultRecords[vaultID] = vaultRecord;
     }
     function removeVaultRecord(
         uint256 vaultID
     ) external onlyRole(REGISTRAR_ROLE) {
-        require(vaultNFT.exists(vaultID), "Vault ID not in registry");
+        if (!getIsIDInRegistry(vaultID)) revert VaultRegistryID404();
         VaultRecord storage record = vaultRecords[vaultID];
         delete record.vaultWallet;
         delete record.collateralID;

@@ -47,6 +47,8 @@ contract VaultManager is AccessControlEnumerable {
     error PawnVaultManagerUnauthorized();
     error PawnVaultManagerNotCollateralWhitelist();
     error PawnVaultManagerOverpayment();
+    error PawnVaultManagerOverBorrowLimit();
+    error PawnVaultManagerMissedPayment();
 
     constructor(
         address _admin,
@@ -185,14 +187,39 @@ contract VaultManager is AccessControlEnumerable {
         VaultRecord memory vaultRecord = (VAULT_REGISTRY.getVaultByID(vaultID));
         CollateralRecord memory collateralRecord = COLLATERAL_REGISTRY
             .getCollateralByID(vaultRecord.collateralID);
-        (IERC20 collateral, , , ) = COLLATERAL_REGISTRY.getCollateralByID(
-            collateralID
-        );
-        collateral.safeTransferFrom(
+        collateralRecord.collateral.safeTransferFrom(
             msg.sender,
-            address(vaultWallet),
+            address(vaultRecord.vaultWallet),
             collateralWad
         );
+    }
+
+    function borrow(uint256 vaultID, uint256 borrowWad, address _to) external {
+        VaultRecord memory vaultRecord = (VAULT_REGISTRY.getVaultByID(vaultID));
+        CollateralRecord memory collateralRecord = COLLATERAL_REGISTRY
+            .getCollateralByID(vaultRecord.collateralID);
+        if (getPenalty(vaultRecord.principal, vaultRecord.nextPaymentEpoch) > 0)
+            revert PawnVaultManagerMissedPayment();
+        uint256 fee = (borrowWad * originationFee) / 10_000;
+        if (
+            (borrowWad + fee) >
+            collateralRecord.borrowCalculator.getAvailableBorrow(vaultID)
+        ) revert PawnVaultManagerOverBorrowLimit();
+        CZUSD.mint(_to, borrowWad);
+        if (vaultRecord.principal == 0) {
+            //new borrow
+            vaultRecord.nextPaymentEpoch =
+                block.timestamp +
+                PAYMENT_PERIOD +
+                2 days; //add two day grace period
+        }
+        vaultRecord.principal += (fee + borrowWad);
+        vaultRecord.nextPaymentInterest += getInterest(
+            borrowWad + fee,
+            1,
+            vaultRecord.nextPaymentEpoch
+        );
+        VAULT_REGISTRY.updateVaultRecord(vaultID, vaultRecord);
     }
 
     function getPenalty(
@@ -218,49 +245,4 @@ contract VaultManager is AccessControlEnumerable {
         if (aprReduction < aprAdd) apr -= aprReduction;
         return (principal * periods * PAYMENT_PERIOD * apr) / 10_000 / 365 days;
     }
-    /*function getAvailableCzusd(
-        PawnVaultRecord storage vRecord,
-        IAmmPair ammCollCzusdPair,
-        IERC20 czusd,
-        address lpLocker,
-        uint256 pawnVaultsTotalColl,
-        uint256 pawnVaultsCollReductionBps
-    ) internal view returns (uint256 availableCzusd_) {
-        IERC20 collateral = vRecord.collateral;
-        uint256 collateralQuantity = collateral.balanceOf(
-            address(vRecord.vault)
-        );
-        uint256 collateralTotalSupply = collateral.totalSupply();
-        bool czusdIsToken0 = ammCollCzusdPair.token0() == address(czusd);
-        (uint112 reserve0, uint112 reserve1, ) = ammCollCzusdPair.getReserves();
-        uint256 lockedLP = ammCollCzusdPair.balanceOf(lpLocker);
-        uint256 totalLP = ammCollCzusdPair.totalSupply();
-
-        uint256 lockedLpCzusdBal = ((czusdIsToken0 ? reserve0 : reserve1) *
-            lockedLP) / totalLP;
-        uint256 lockedLpCollBal = ((czusdIsToken0 ? reserve1 : reserve0) *
-            lockedLP) / totalLP;
-
-        if (lockedLpCollBal == collateralTotalSupply) {
-            availableCzusd_ =
-                (collateralQuantity * lockedLpCzusdBal) /
-                collateralTotalSupply;
-        } else {
-            availableCzusd_ =
-                (collateralQuantity *
-                    (lockedLpCzusdBal -
-                        (
-                            AmmLibrary.getAmountOut(
-                                collateralTotalSupply -
-                                    lockedLpCollBal -
-                                    (((10_000 - pawnVaultsCollReductionBps) *
-                                        pawnVaultsTotalColl) / 10_000),
-                                lockedLpCollBal,
-                                lockedLpCzusdBal
-                            )
-                        ))) /
-                collateralTotalSupply;
-        }
-    }
-    */
 }
