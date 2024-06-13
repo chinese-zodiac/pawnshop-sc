@@ -11,4 +11,6 @@ struct CollateralRecord {
     IBorrowCalculator borrowCalculator;
     ILiquidationController liquidationController;
     IYieldController yieldController;
+    uint256 currentBorrow;
+    uint256 additionalGlobalBorrowCap;
 }

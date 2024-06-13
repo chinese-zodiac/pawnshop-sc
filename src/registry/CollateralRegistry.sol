@@ -72,7 +72,21 @@ contract CollateralRegistry is ICollateralRegistry, AccessControlEnumerable {
         delete collateralRecords[id].borrowCalculator;
         delete collateralRecords[id].liquidationController;
         delete collateralRecords[id].yieldController;
+        delete collateralRecords[id].additionalGlobalBorrowCap;
+        delete collateralRecords[id].currentBorrow;
         delete collateralRecords[id];
         collateralRegistry.remove(id);
+    }
+    function increaseCollateralRecordBorrow(
+        uint256 id,
+        uint256 _by
+    ) external onlyRole(REGISTRAR_ROLE) {
+        collateralRecords[id].currentBorrow += _by;
+    }
+    function decreaseCollateralRecordBorrow(
+        uint256 id,
+        uint256 _by
+    ) external onlyRole(REGISTRAR_ROLE) {
+        collateralRecords[id].currentBorrow -= _by;
     }
 }
